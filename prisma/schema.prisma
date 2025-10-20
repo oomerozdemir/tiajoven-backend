@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["auth", "store", "public"]
+}
+
+/* AUTH ŞEMASI */
+model User {
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  password       String
+  isEmailAllowed Boolean  @default(false)
+  isAdmin        Boolean    @default(false)
+  createdAt      DateTime @default(now())
+  favorites      Favorite[]
+
+  name   String?
+  phone  String?
+  city   String?
+
+  @@schema("auth")
+}
+
+/* STORE ŞEMASI */
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  description   String?
+  imageUrl      String?      
+  imagePublicId String? 
+
+  @@schema("store")
+}
+
+model Product {
+  id         Int       @id @default(autoincrement())
+  title      String
+  slug       String    @unique
+  price      Int       // kuruş
+  description String?  // kısa açıklama
+  imageUrl   String?   // Cloudinary teslim URL (webp/f_auto ile)
+  imagePublicId String? // Cloudinary public_id (silme/güncelle için)
+  sizes      String?   // "46,48,50" ya da boş
+  isFeatured Boolean   @default(false)
+  categoryId Int
+  category   Category  @relation(fields: [categoryId], references: [id])
+  createdAt  DateTime  @default(now())
+
+  @@schema("store")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  productId Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])  
+  @@schema("store")
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  phone     String
+  email     String
+  subject   String
+  message   String   @db.Text
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@schema("store")
+}
