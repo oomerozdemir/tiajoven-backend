@@ -25,29 +25,73 @@ const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 
 /* ---------- Security & Perf ---------- */
+app.disable("x-powered-by");
 app.use(helmet());
 app.use(compression());
 
-/* ---------- CORS (allow only known origins) ---------- */
-const allowed = [
-  "http://localhost:5173",                            // dev
-  "https://tiajoven-frontend.vercel.app",            // vercel preview/prod
-  "https://tiajoven.com",                        // custom domain (FE)
-  "https://www.tiajoven.com",                        // custom domain (FE)
+/* ---------- CORS ---------- */
+/**
+ * İzinli origin’ler:
+ * - prod domainlerin: tiajoven.com, www.tiajoven.com
+ * - vercel prod: tiajoven-frontend.vercel.app
+ * - tüm vercel preview’leri: *.vercel.app
+ * - dev: localhost:5173
+ * - .env: CORS_ORIGINS="https://a.com,https://b.com"
+ * - acil durumda: CORS_ALLOW_ALL=true
+ */
+const STATIC_ALLOWED = [
+  "http://localhost:5173",
+  "https://tiajoven.com",
+  "https://www.tiajoven.com",
+  "https://tiajoven-frontend.vercel.app",
+];
 
-].filter(Boolean);
+const ENV_ALLOWED = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const ALLOWED = [...new Set([...STATIC_ALLOWED, ...ENV_ALLOWED])];
+
+const allowAll = String(process.env.CORS_ALLOW_ALL || "").toLowerCase() === "true";
+
+const corsOrigin = (origin, cb) => {
+  // Origin yoksa (ör: server-to-server, curl, Postman) izin ver
+  if (!origin) return cb(null, true);
+
+  if (allowAll) return cb(null, true);
+
+  try {
+    const url = new URL(origin);
+    const host = url.hostname;
+
+    // Birebir eşleşen origin
+    if (ALLOWED.includes(origin)) return cb(null, true);
+
+    // *.vercel.app önizleme domainleri
+    if (/\.vercel\.app$/i.test(host)) return cb(null, true);
+
+    // www’suz/with-www varyasyonlar için ek güvenlik (opsiyonel)
+    if (host === "tiajoven.com" || host === "www.tiajoven.com") return cb(null, true);
+  } catch {
+    // Geçersiz URL formatı geldiyse reddet
+  }
+
+  return cb(new Error("Not allowed by CORS"));
+};
 
 app.use(
   cors({
-    origin(origin, cb) {
-      // no origin = same-origin or tools (allow)
-      if (!origin) return cb(null, true);
-      if (allowed.includes(origin)) return cb(null, true);
-      return cb(new Error("Not allowed by CORS"));
-    },
-    credentials: false,
+    origin: corsOrigin,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false, // JWT header’da, cookie yoksa true gerekmiyor
+    optionsSuccessStatus: 204,
   })
 );
+
+// Preflight’lar için hızlı yanıt
+app.options("*", cors({ origin: corsOrigin }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -75,6 +119,10 @@ app.use("/api/messages", messageRoutes);
 /* ---------- 404 & Error handler ---------- */
 app.use((req, res) => res.status(404).json({ message: "Not Found" }));
 app.use((err, req, res, next) => {
+  // CORS hata mesajını frontend’e düzgün döndür
+  if (err?.message === "Not allowed by CORS") {
+    return res.status(403).json({ message: "CORS: Origin not allowed" });
+  }
   console.error(err);
   res.status(500).json({ message: "Server error" });
 });
