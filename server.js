@@ -30,15 +30,6 @@ app.use(helmet());
 app.use(compression());
 
 /* ---------- CORS ---------- */
-/**
- * İzinli origin’ler:
- * - prod domainlerin: tiajoven.com, www.tiajoven.com
- * - vercel prod: tiajoven-frontend.vercel.app
- * - tüm vercel preview’leri: *.vercel.app
- * - dev: localhost:5173
- * - .env: CORS_ORIGINS="https://a.com,https://b.com"
- * - acil durumda: CORS_ALLOW_ALL=true
- */
 const STATIC_ALLOWED = [
   "http://localhost:5173",
   "https://tiajoven.com",
@@ -47,51 +38,31 @@ const STATIC_ALLOWED = [
 ];
 
 const ENV_ALLOWED = (process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map(s => s.trim())
-  .filter(Boolean);
+  .split(",").map(s => s.trim()).filter(Boolean);
 
 const ALLOWED = [...new Set([...STATIC_ALLOWED, ...ENV_ALLOWED])];
-
 const allowAll = String(process.env.CORS_ALLOW_ALL || "").toLowerCase() === "true";
 
 const corsOrigin = (origin, cb) => {
-  // Origin yoksa (ör: server-to-server, curl, Postman) izin ver
-  if (!origin) return cb(null, true);
-
+  if (!origin) return cb(null, true);              // server-to-server / Postman
   if (allowAll) return cb(null, true);
 
   try {
-    const url = new URL(origin);
-    const host = url.hostname;
-
-    // Birebir eşleşen origin
+    const host = new URL(origin).hostname;
     if (ALLOWED.includes(origin)) return cb(null, true);
-
-    // *.vercel.app önizleme domainleri
-    if (/\.vercel\.app$/i.test(host)) return cb(null, true);
-
-    // www’suz/with-www varyasyonlar için ek güvenlik (opsiyonel)
+    if (/\.vercel\.app$/i.test(host)) return cb(null, true); // preview’ler
     if (host === "tiajoven.com" || host === "www.tiajoven.com") return cb(null, true);
-  } catch {
-    // Geçersiz URL formatı geldiyse reddet
-  }
-
+  } catch {}
   return cb(new Error("Not allowed by CORS"));
 };
 
-app.use(
-  cors({
-    origin: corsOrigin,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: false, // JWT header’da, cookie yoksa true gerekmiyor
-    optionsSuccessStatus: 204,
-  })
-);
-
-// Preflight’lar için hızlı yanıt
-app.options("*", cors({ origin: corsOrigin }));
+app.use(cors({
+  origin: corsOrigin,
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
+  credentials: false,
+  optionsSuccessStatus: 204,
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -101,7 +72,7 @@ app.get("/api/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ ok: true, env: NODE_ENV });
-  } catch (err) {
+  } catch {
     res.status(500).json({ ok: false });
   }
 });
@@ -119,7 +90,6 @@ app.use("/api/messages", messageRoutes);
 /* ---------- 404 & Error handler ---------- */
 app.use((req, res) => res.status(404).json({ message: "Not Found" }));
 app.use((err, req, res, next) => {
-  // CORS hata mesajını frontend’e düzgün döndür
   if (err?.message === "Not allowed by CORS") {
     return res.status(403).json({ message: "CORS: Origin not allowed" });
   }
