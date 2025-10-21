@@ -33,7 +33,6 @@ const allowed = [
   "http://localhost:5173",                            // dev
   "https://tiajoven-frontend.vercel.app",            // vercel preview/prod
   "https://www.tiajoven.com",                        // custom domain (FE)
-  "https://api.tiajoven.com"                         // custom domain (BE, opsiyonel)
 ].filter(Boolean);
 
 app.use(
