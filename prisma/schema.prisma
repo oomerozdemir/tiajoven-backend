@@ -34,6 +34,7 @@ model Category {
   description   String?
   imageUrl      String?      
   imagePublicId String? 
+  
 
   @@schema("store")
 }

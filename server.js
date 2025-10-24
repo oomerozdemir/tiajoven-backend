@@ -14,6 +14,7 @@ import categoryRoutes from "./routes/categoryRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import { verifyToken } from "./utils/authMiddleware.js";
+import sitemapRoutes from "./routes/sitemapRoutes.js"
 
 dotenv.config();
 
@@ -86,6 +87,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api", sitemapRoutes);
 
 /* ---------- 404 & Error handler ---------- */
 app.use((req, res) => res.status(404).json({ message: "Not Found" }));
